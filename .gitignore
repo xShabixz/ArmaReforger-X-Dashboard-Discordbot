@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment (contains secrets)
+.env
+
+# Logs
+logs/
+*.log
+
+# Database data files (keep .js modules, ignore .json data)
+database/*.json
+
+# SSL certificates (generated per-server)
+ssl/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PM2
+.pm2/

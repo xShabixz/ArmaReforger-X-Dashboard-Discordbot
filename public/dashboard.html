@@ -1,0 +1,1124 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArmaBot Dashboard</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
+
+        /* Header */
+        .header { background: rgba(255,255,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.1); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 18px; font-weight: 600; color: #5865f2; }
+        .header-actions { display: flex; gap: 12px; align-items: center; }
+        .refresh-indicator { font-size: 12px; color: rgba(255,255,255,0.4); }
+
+        /* Buttons */
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: #5865f2; color: #fff; }
+        .btn-primary:hover { background: #4752c4; }
+        .btn-secondary { background: rgba(255,255,255,0.08); color: #e0e0e0; }
+        .btn-secondary:hover { background: rgba(255,255,255,0.12); }
+        .btn-danger { background: #ed4245; color: #fff; }
+        .btn-danger:hover { background: #c73539; }
+        .btn-success { background: #57f287; color: #000; }
+        .btn-success:hover { background: #3dd36b; }
+        .btn-small { padding: 4px 10px; font-size: 12px; }
+        .btn-warn { background: #fee75c; color: #000; }
+        .btn-warn:hover { background: #e0cc4e; }
+
+        /* Main layout */
+        .main { padding: 20px 24px; max-width: 1600px; margin: 0 auto; }
+
+        /* Status cards */
+        .status-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .status-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 16px; }
+        .status-card h3 { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.5); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .status-card .value { font-size: 24px; font-weight: 700; }
+        .status-card .indicator { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .status-dot.online { background: #57f287; box-shadow: 0 0 6px #57f287; }
+        .status-dot.offline { background: #ed4245; box-shadow: 0 0 6px #ed4245; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0; }
+        .tab { padding: 10px 18px; background: transparent; border: none; border-bottom: 2px solid transparent; color: rgba(255,255,255,0.5); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+        .tab:hover { color: #fff; background: rgba(255,255,255,0.03); }
+        .tab.active { color: #5865f2; border-bottom-color: #5865f2; }
+
+        /* Content sections */
+        .content-section { display: none; }
+        .content-section.active { display: block; }
+
+        /* Table container */
+        .table-container { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; overflow: hidden; }
+        .table-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .table-header h2 { font-size: 15px; font-weight: 600; }
+        .table-actions { display: flex; gap: 8px; align-items: center; }
+
+        /* Search */
+        .search-input { padding: 6px 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #e0e0e0; font-size: 13px; width: 200px; }
+        .search-input:focus { outline: none; border-color: #5865f2; }
+        .search-input::placeholder { color: rgba(255,255,255,0.3); }
+
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        th { font-size: 11px; font-weight: 600; text-transform: uppercase; color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.02); letter-spacing: 0.5px; }
+        td { font-size: 13px; }
+        tr:hover { background: rgba(255,255,255,0.02); }
+
+        /* Log types */
+        .log-type { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+        .log-type.player_joined { background: rgba(87,242,135,0.15); color: #57f287; }
+        .log-type.player_left { background: rgba(237,66,69,0.15); color: #ed4245; }
+        .log-type.warning_sent { background: rgba(254,231,92,0.15); color: #fee75c; }
+        .log-type.player_kicked { background: rgba(237,66,69,0.2); color: #ed4245; }
+        .log-type.role_sync_added, .log-type.manual_add, .log-type.dashboard_add { background: rgba(88,101,242,0.15); color: #5865f2; }
+        .log-type.role_sync_removed, .log-type.manual_remove, .log-type.dashboard_remove { background: rgba(235,69,158,0.15); color: #eb459e; }
+        .log-type.admin_kick, .log-type.dashboard_kick { background: rgba(255,165,0,0.15); color: #ffa500; }
+        .log-type.admin_rcon, .log-type.dashboard_rcon { background: rgba(255,165,0,0.15); color: #ffaa00; }
+        .log-type.chat { background: rgba(88,101,242,0.1); color: #7289da; }
+        .log-type.kill { background: rgba(237,66,69,0.2); color: #ed4245; }
+
+        /* WL badge */
+        .wl-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        .wl-badge.yes { background: rgba(87,242,135,0.15); color: #57f287; }
+        .wl-badge.no { background: rgba(237,66,69,0.15); color: #ed4245; }
+
+        .empty-state { text-align: center; padding: 40px; color: rgba(255,255,255,0.4); font-size: 14px; }
+
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: #1a1a2e; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; width: 100%; max-width: 420px; }
+        .modal h2 { font-size: 16px; margin-bottom: 16px; }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .form-group input, .form-group textarea { width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; font-size: 13px; font-family: inherit; }
+        .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #5865f2; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+
+        /* RCON Console */
+        .rcon-console { background: #0a0a15; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; overflow: hidden; }
+        .rcon-output { height: 400px; overflow-y: auto; padding: 12px 16px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; line-height: 1.6; color: #b0b0b0; }
+        .rcon-output .msg-in { color: #57f287; }
+        .rcon-output .msg-out { color: #5865f2; }
+        .rcon-output .msg-sys { color: #fee75c; }
+        .rcon-output .msg-err { color: #ed4245; }
+        .rcon-input-row { display: flex; border-top: 1px solid rgba(255,255,255,0.08); }
+        .rcon-input-row input { flex: 1; padding: 12px 16px; background: rgba(255,255,255,0.03); border: none; color: #e0e0e0; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; }
+        .rcon-input-row input:focus { outline: none; }
+        .rcon-input-row button { padding: 12px 20px; background: #5865f2; border: none; color: #fff; font-size: 13px; cursor: pointer; }
+        .rcon-input-row button:hover { background: #4752c4; }
+
+        /* Players grid */
+        .players-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+        .player-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 14px; display: flex; justify-content: space-between; align-items: center; }
+        .player-info h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .player-info p { font-size: 12px; color: rgba(255,255,255,0.4); }
+        .player-actions { display: flex; gap: 6px; }
+
+        .pending-kick-bar { background: rgba(237,66,69,0.1); border: 1px solid rgba(237,66,69,0.3); border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+        .pending-kick-bar .pk-name { font-weight: 600; color: #ed4245; }
+        .pending-kick-bar .pk-time { color: #fee75c; font-weight: 600; margin-left: auto; }
+
+        /* Settings */
+        .settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+        .setting-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 16px; display: flex; justify-content: space-between; align-items: center; }
+        .setting-info h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .setting-info p { font-size: 12px; color: rgba(255,255,255,0.4); }
+        .toggle-switch { position: relative; width: 48px; height: 26px; cursor: pointer; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.15); border-radius: 26px; transition: 0.3s; }
+        .toggle-slider:before { content: ''; position: absolute; height: 20px; width: 20px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.3s; }
+        .toggle-switch input:checked + .toggle-slider { background: #57f287; }
+        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(22px); }
+        .log-type.player_registered { background: rgba(88,101,242,0.15); color: #5865f2; }
+        .log-type.player_unregistered { background: rgba(235,69,158,0.15); color: #eb459e; }
+        .log-type.settings_changed, .log-type.dashboard_settings { background: rgba(254,231,92,0.15); color: #fee75c; }
+        .log-type.admin_broadcast { background: rgba(254,231,92,0.15); color: #fee75c; }
+        .log-type.dashboard_unregister { background: rgba(235,69,158,0.15); color: #eb459e; }
+        .log-type.credit_updated { background: rgba(88,101,242,0.15); color: #5865f2; }
+        .log-type.whitelist_code_redeemed { background: rgba(87,242,135,0.15); color: #57f287; }
+        .log-type.whitelist_role_request { background: rgba(87,242,135,0.15); color: #57f287; }
+        .log-type.whitelist_code_created { background: rgba(88,101,242,0.15); color: #5865f2; }
+        .log-type.whitelist_code_deleted { background: rgba(237,66,69,0.15); color: #ed4245; }
+
+        /* Credit editor */
+        .credit-section { max-width: 600px; }
+        .credit-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+        .credit-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #5865f2; }
+        .credit-locked { text-align: center; padding: 40px 20px; }
+        .credit-locked p { color: rgba(255,255,255,0.5); margin-bottom: 16px; }
+        .msg-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+        .msg-row { display: flex; gap: 8px; align-items: center; }
+        .msg-row input { flex: 1; }
+        .msg-row .btn { flex-shrink: 0; }
+
+        /* Whitelist codes */
+        .codes-section { max-width: 900px; }
+        .code-gen-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+        .code-gen-form .form-group { margin-bottom: 0; }
+        .code-gen-form label { font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 4px; display: block; text-transform: uppercase; letter-spacing: 0.5px; }
+        .code-gen-form input { padding: 8px 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #e0e0e0; font-size: 13px; width: 120px; }
+        .code-gen-form input:focus { outline: none; border-color: #5865f2; }
+        .code-gen-form input.wide { width: 200px; }
+        .code-badge { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; font-family: 'Consolas', monospace; letter-spacing: 1px; cursor: pointer; }
+        .code-badge.active { background: rgba(87,242,135,0.15); color: #57f287; }
+        .code-badge.expired { background: rgba(237,66,69,0.15); color: #ed4245; }
+        .code-badge.used { background: rgba(255,165,0,0.15); color: #ffa500; }
+        .code-status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        .code-status.active { background: rgba(87,242,135,0.15); color: #57f287; }
+        .code-status.expired { background: rgba(237,66,69,0.15); color: #ed4245; }
+        .code-status.used { background: rgba(255,165,0,0.15); color: #ffa500; }
+
+        /* Registrations table */
+        .reg-section { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>ArmaBot Dashboard <span id="roleBadge" style="font-size:11px;padding:3px 8px;border-radius:4px;margin-left:8px;font-weight:600;text-transform:uppercase;"></span></h1>
+        <div class="header-actions">
+            <span class="refresh-indicator">Auto-refresh: <span id="countdown">15</span>s</span>
+            <button class="btn btn-secondary btn-small" onclick="refreshData()">Refresh</button>
+            <a href="/logout" class="btn btn-secondary btn-small">Logout</a>
+        </div>
+    </header>
+
+    <main class="main">
+        <!-- Status Cards -->
+        <div class="status-cards">
+            <div class="status-card">
+                <h3>Discord Bot</h3>
+                <div class="indicator">
+                    <span class="status-dot" id="discordStatus"></span>
+                    <span id="discordStatusText">...</span>
+                </div>
+            </div>
+            <div class="status-card">
+                <h3>RCON</h3>
+                <div class="indicator">
+                    <span class="status-dot" id="rconStatus"></span>
+                    <span id="rconStatusText">...</span>
+                </div>
+            </div>
+            <div class="status-card">
+                <h3>Online Players</h3>
+                <div class="value" id="playerCount" style="color:#57f287">0</div>
+            </div>
+            <div class="status-card">
+                <h3>Whitelisted</h3>
+                <div class="value" id="whitelistCount" style="color:#5865f2">0</div>
+            </div>
+            <div class="status-card">
+                <h3>Registered</h3>
+                <div class="value" id="registeredCount" style="color:#ffaa00">0</div>
+            </div>
+            <div class="status-card">
+                <h3>Pending Kicks</h3>
+                <div class="value" id="pendingKickCount" style="color:#fee75c">0</div>
+            </div>
+            <div class="status-card">
+                <h3>Uptime</h3>
+                <div class="value" id="uptime" style="font-size:18px">-</div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="players">Online Players</button>
+            <button class="tab" data-tab="whitelist">Whitelist</button>
+            <button class="tab" data-tab="logs">Activity Logs</button>
+            <button class="tab" data-tab="console">RCON Console</button>
+            <button class="tab" data-tab="settings">Settings</button>
+            <button class="tab" data-tab="registrations">Registrations</button>
+            <button class="tab" data-tab="wlcodes">WL Codes</button>
+            <button class="tab" data-tab="credit">Credit/Status</button>
+        </div>
+
+        <!-- Online Players Section -->
+        <section id="playersSection" class="content-section active">
+            <div id="pendingKicksArea"></div>
+            <div id="playersArea" class="players-grid">
+                <div class="empty-state" style="grid-column:1/-1">No players online</div>
+            </div>
+        </section>
+
+        <!-- Whitelist Section -->
+        <section id="whitelistSection" class="content-section">
+            <div class="table-container">
+                <div class="table-header">
+                    <h2>Whitelisted Players</h2>
+                    <div class="table-actions">
+                        <input type="text" class="search-input" id="wlSearch" placeholder="Search..." oninput="filterWhitelist()">
+                        <button class="btn btn-primary btn-small" onclick="showAddModal()">+ Add Player</button>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Player ID</th>
+                            <th>Name</th>
+                            <th>Discord ID</th>
+                            <th>Added</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="whitelistTable">
+                        <tr><td colspan="6" class="empty-state">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Logs Section -->
+        <section id="logsSection" class="content-section">
+            <div class="table-container">
+                <div class="table-header">
+                    <h2>Activity Logs</h2>
+                    <div class="table-actions">
+                        <select id="logFilter" class="btn btn-secondary btn-small" onchange="loadLogs()">
+                            <option value="">All Events</option>
+                            <option value="player_joined">Player Joined</option>
+                            <option value="player_left">Player Left</option>
+                            <option value="warning_sent">Warning Sent</option>
+                            <option value="player_kicked">Player Kicked</option>
+                            <option value="chat">Chat</option>
+                            <option value="kill">Kill</option>
+                            <option value="manual_add">Manual Add</option>
+                            <option value="manual_remove">Manual Remove</option>
+                            <option value="dashboard_add">Dashboard Add</option>
+                            <option value="dashboard_remove">Dashboard Remove</option>
+                            <option value="admin_kick">Admin Kick</option>
+                            <option value="admin_rcon">Admin RCON</option>
+                            <option value="role_sync_added">Role Sync Added</option>
+                            <option value="role_sync_removed">Role Sync Removed</option>
+                            <option value="player_registered">Player Registered</option>
+                            <option value="player_unregistered">Player Unregistered</option>
+                            <option value="settings_changed">Settings Changed</option>
+                            <option value="admin_broadcast">Broadcast</option>
+                        </select>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Event</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTable">
+                        <tr><td colspan="3" class="empty-state">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- RCON Console Section -->
+        <section id="consoleSection" class="content-section">
+            <div class="rcon-console">
+                <div class="rcon-output" id="rconOutput">
+                    <div class="msg-sys">Welcome to RCON Console. Type a command and press Enter or Send.</div>
+                </div>
+                <div class="rcon-input-row">
+                    <input type="text" id="rconInput" placeholder="Enter RCON command..." onkeydown="if(event.key==='Enter')sendRconCommand()">
+                    <button onclick="sendRconCommand()">Send</button>
+                </div>
+            </div>
+        </section>
+        <!-- Settings Section -->
+        <section id="settingsSection" class="content-section">
+            <div class="settings-grid" id="settingsGrid">
+                <div class="empty-state" style="grid-column:1/-1">Loading...</div>
+            </div>
+        </section>
+
+        <!-- Registrations Section -->
+        <section id="registrationsSection" class="content-section">
+            <div class="table-container">
+                <div class="table-header">
+                    <h2>Registered Players</h2>
+                    <div class="table-actions">
+                        <input type="text" class="search-input" id="regSearch" placeholder="Search..." oninput="filterRegistrations()">
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Discord ID</th>
+                            <th>Game UID</th>
+                            <th>Player Name</th>
+                            <th>Registered</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="registrationsTable">
+                        <tr><td colspan="6" class="empty-state">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Whitelist Codes Section -->
+        <section id="wlcodesSection" class="content-section">
+            <div class="codes-section">
+                <div class="credit-card">
+                    <h3>🎫 Generate Whitelist Code</h3>
+                    <div class="code-gen-form">
+                        <div class="form-group">
+                            <label>Max Uses (0=∞)</label>
+                            <input type="number" id="codeMaxUses" value="1" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Expires (hours, 0=never)</label>
+                            <input type="number" id="codeExpires" value="0" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Note</label>
+                            <input type="text" id="codeNote" class="wide" placeholder="Optional note...">
+                        </div>
+                        <button class="btn btn-primary" onclick="generateWlCode()">Generate</button>
+                    </div>
+                    <div id="generatedCodeArea" style="display:none;margin-top:12px;padding:12px;background:rgba(87,242,135,0.1);border-radius:8px">
+                        <span style="color:rgba(255,255,255,0.6)">Generated Code:</span>
+                        <span id="generatedCode" style="font-family:Consolas,monospace;font-size:18px;font-weight:700;color:#57f287;margin-left:8px;letter-spacing:2px"></span>
+                        <button class="btn btn-secondary btn-small" style="margin-left:12px" onclick="copyCode()">Copy</button>
+                    </div>
+                </div>
+
+                <div class="table-container" style="margin-top:16px">
+                    <div class="table-header">
+                        <h2>All Whitelist Codes</h2>
+                        <button class="btn btn-secondary btn-small" onclick="loadWlCodes()">Refresh</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Status</th>
+                                <th>Uses</th>
+                                <th>Expires</th>
+                                <th>Note</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="wlCodesTable">
+                            <tr><td colspan="7" class="empty-state">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Credit/Status Editor Section -->
+        <section id="creditSection" class="content-section">
+            <div class="credit-section">
+                <div class="credit-card" id="creditLockArea">
+                    <div class="credit-locked">
+                        <h3>🔐 Bot Status Messages</h3>
+                        <p>Enter unlock code to edit bot status/credit messages</p>
+                        <div style="display:flex;gap:8px;justify-content:center;max-width:300px;margin:0 auto">
+                            <input type="password" id="creditUnlockCode" class="search-input" placeholder="Unlock Code" style="width:200px">
+                            <button class="btn btn-primary btn-small" onclick="unlockCredit()">Unlock</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="creditEditorArea" style="display:none">
+                    <div class="credit-card">
+                        <h3>📝 Status Messages (rotates every N seconds)</h3>
+                        <div class="msg-list" id="statusMsgList"></div>
+                        <button class="btn btn-success btn-small" onclick="addStatusMsg()">+ Add Message</button>
+                    </div>
+                    <div class="credit-card">
+                        <h3>⏱ Rotation Interval</h3>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="number" id="creditInterval" class="search-input" style="width:100px" min="10" max="300">
+                            <span style="color:rgba(255,255,255,0.5)">seconds (10-300)</span>
+                        </div>
+                    </div>
+                    <div class="credit-card">
+                        <h3>🔑 Change Unlock Code</h3>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="text" id="newCreditCode" class="search-input" placeholder="New unlock code (min 4 chars)" style="width:250px">
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:16px">
+                        <button class="btn btn-primary" onclick="saveCreditSettings()">Save Changes</button>
+                        <button class="btn btn-secondary" onclick="lockCredit()">Lock</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Add Player Modal -->
+    <div class="modal-overlay" id="addModal">
+        <div class="modal">
+            <h2>Add Player to Whitelist</h2>
+            <form id="addForm">
+                <div class="form-group">
+                    <label>Player ID (Game UID) *</label>
+                    <input type="text" id="addPlayerId" required placeholder="Enter player ID">
+                </div>
+                <div class="form-group">
+                    <label>Player Name</label>
+                    <input type="text" id="addPlayerName" placeholder="Enter name (optional)">
+                </div>
+                <div class="form-group">
+                    <label>Discord ID</label>
+                    <input type="text" id="addDiscordId" placeholder="Enter Discord ID (optional)">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="hideAddModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Player</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        var refreshTimer;
+        var countdown = 15;
+        var whitelistData = [];
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+                document.querySelectorAll('.content-section').forEach(function(s) { s.classList.remove('active'); });
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab + 'Section').classList.add('active');
+            });
+        });
+
+        // --- Load Status ---
+        async function loadStatus() {
+            try {
+                var res = await fetch('/api/status');
+                if (res.status === 401) { window.location.href = '/login.html'; return; }
+                var data = await res.json();
+
+                // Discord
+                var dd = document.getElementById('discordStatus');
+                var dt = document.getElementById('discordStatusText');
+                dd.className = 'status-dot ' + (data.discord.connected ? 'online' : 'offline');
+                dt.textContent = data.discord.connected ? 'Online' : 'Offline';
+
+                // RCON
+                var rd = document.getElementById('rconStatus');
+                var rt = document.getElementById('rconStatusText');
+                rd.className = 'status-dot ' + (data.rcon.connected ? 'online' : 'offline');
+                rt.textContent = data.rcon.connected ? 'Connected' : 'Disconnected';
+
+                // Counts
+                document.getElementById('playerCount').textContent = data.players.count;
+                document.getElementById('whitelistCount').textContent = data.whitelist.count;
+                document.getElementById('pendingKickCount').textContent = data.pendingKicks.length;
+                document.getElementById('registeredCount').textContent = data.registrations ? data.registrations.count : 0;
+
+                // Uptime
+                var h = Math.floor(data.uptime / 3600);
+                var m = Math.floor((data.uptime % 3600) / 60);
+                document.getElementById('uptime').textContent = h + 'h ' + m + 'm';
+
+                // Online players
+                renderPlayers(data.players.list);
+
+                // Pending kicks
+                renderPendingKicks(data.pendingKicks);
+            } catch (e) {
+                console.error('Error loading status:', e);
+            }
+        }
+
+        function renderPlayers(players) {
+            var area = document.getElementById('playersArea');
+            if (!players || players.length === 0) {
+                area.innerHTML = '<div class="empty-state" style="grid-column:1/-1">No players online</div>';
+                return;
+            }
+
+            area.innerHTML = players.map(function(p) {
+                var wlClass = p.isWhitelisted ? 'yes' : 'no';
+                var wlText = p.isWhitelisted ? 'WL' : 'NO WL';
+                return '<div class="player-card">' +
+                    '<div class="player-info">' +
+                        '<h4>' + esc(p.playerName) + ' <span class="wl-badge ' + wlClass + '">' + wlText + '</span></h4>' +
+                        '<p>' + esc(p.playerId) + ' &middot; ' + p.onlineMinutes + ' min</p>' +
+                    '</div>' +
+                    '<div class="player-actions">' +
+                        '<button class="btn btn-danger btn-small" onclick="kickPlayerOnline(\'' + esc(p.playerId) + '\')">Kick</button>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+        }
+
+        function renderPendingKicks(kicks) {
+            var area = document.getElementById('pendingKicksArea');
+            if (!kicks || kicks.length === 0) {
+                area.innerHTML = '';
+                return;
+            }
+
+            area.innerHTML = kicks.map(function(k) {
+                return '<div class="pending-kick-bar">' +
+                    '<span>Pending Kick:</span> ' +
+                    '<span class="pk-name">' + esc(k.playerName) + '</span> ' +
+                    '<span>(' + esc(k.playerId) + ')</span>' +
+                    '<span class="pk-time">' + k.remainingSeconds + 's remaining</span>' +
+                '</div>';
+            }).join('');
+        }
+
+        // --- Load Whitelist ---
+        async function loadWhitelist() {
+            try {
+                var res = await fetch('/api/whitelist');
+                if (res.status === 401) { window.location.href = '/login.html'; return; }
+                var data = await res.json();
+                whitelistData = data.entries;
+                renderWhitelist(whitelistData);
+            } catch (e) {
+                console.error('Error loading whitelist:', e);
+            }
+        }
+
+        function renderWhitelist(entries) {
+            var tbody = document.getElementById('whitelistTable');
+            if (entries.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No players whitelisted</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = entries.map(function(entry, i) {
+                return '<tr>' +
+                    '<td>' + (i + 1) + '</td>' +
+                    '<td><code>' + esc(entry.playerId) + '</code></td>' +
+                    '<td>' + esc(entry.playerName || '-') + '</td>' +
+                    '<td>' + esc(entry.discordId || '-') + '</td>' +
+                    '<td>' + formatDate(entry.addedAt) + '</td>' +
+                    '<td><button class="btn btn-danger btn-small" onclick="removePlayer(\'' + esc(entry.playerId) + '\')">Remove</button></td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        function filterWhitelist() {
+            var q = document.getElementById('wlSearch').value.toLowerCase();
+            if (!q) { renderWhitelist(whitelistData); return; }
+            var filtered = whitelistData.filter(function(e) {
+                return (e.playerId && e.playerId.toLowerCase().includes(q)) ||
+                       (e.playerName && e.playerName.toLowerCase().includes(q)) ||
+                       (e.discordId && e.discordId.toLowerCase().includes(q));
+            });
+            renderWhitelist(filtered);
+        }
+
+        // --- Load Logs ---
+        async function loadLogs() {
+            try {
+                var filter = document.getElementById('logFilter').value;
+                var url = filter ? '/api/logs?type=' + filter + '&count=200' : '/api/logs?count=200';
+                var res = await fetch(url);
+                if (res.status === 401) { window.location.href = '/login.html'; return; }
+                var data = await res.json();
+                var tbody = document.getElementById('logsTable');
+
+                if (data.logs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No logs found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.logs.map(function(log) {
+                    return '<tr>' +
+                        '<td style="white-space:nowrap">' + formatDate(log.timestamp) + '</td>' +
+                        '<td><span class="log-type ' + (log.type || '') + '">' + formatLogType(log.type) + '</span></td>' +
+                        '<td>' + formatLogData(log.data) + '</td>' +
+                    '</tr>';
+                }).join('');
+            } catch (e) {
+                console.error('Error loading logs:', e);
+            }
+        }
+
+        // --- RCON Console ---
+        async function sendRconCommand() {
+            var input = document.getElementById('rconInput');
+            var cmd = input.value.trim();
+            if (!cmd) return;
+
+            appendConsole('> ' + cmd, 'msg-out');
+            input.value = '';
+
+            try {
+                var res = await fetch('/api/rcon', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: cmd })
+                });
+                var data = await res.json();
+                if (res.ok) {
+                    appendConsole(data.message || 'Command sent', 'msg-sys');
+                } else {
+                    appendConsole('Error: ' + (data.error || 'Unknown'), 'msg-err');
+                }
+            } catch (e) {
+                appendConsole('Error: ' + e.message, 'msg-err');
+            }
+        }
+
+        function appendConsole(text, cls) {
+            var output = document.getElementById('rconOutput');
+            var div = document.createElement('div');
+            div.className = cls || '';
+            div.textContent = text;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+
+            // Keep max 200 lines
+            while (output.children.length > 200) {
+                output.removeChild(output.firstChild);
+            }
+        }
+
+        // --- Add Player ---
+        document.getElementById('addForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            var playerId = document.getElementById('addPlayerId').value;
+            var playerName = document.getElementById('addPlayerName').value;
+            var discordId = document.getElementById('addDiscordId').value;
+
+            try {
+                var res = await fetch('/api/whitelist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerId: playerId, playerName: playerName, discordId: discordId })
+                });
+                if (res.ok) {
+                    hideAddModal();
+                    refreshData();
+                } else {
+                    var data = await res.json();
+                    alert(data.error || 'Failed to add player');
+                }
+            } catch (e) {
+                alert('Error adding player');
+            }
+        });
+
+        // --- Remove Player ---
+        async function removePlayer(playerId) {
+            if (!confirm('Remove ' + playerId + ' from whitelist?')) return;
+            try {
+                await fetch('/api/whitelist/' + encodeURIComponent(playerId), { method: 'DELETE' });
+                refreshData();
+            } catch (e) {
+                alert('Error removing player');
+            }
+        }
+
+        // --- Kick Online Player ---
+        async function kickPlayerOnline(playerId) {
+            var reason = prompt('Kick reason (leave empty for default):') || 'Kicked by admin';
+            try {
+                var res = await fetch('/api/kick', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerId: playerId, reason: reason })
+                });
+                if (res.ok) {
+                    refreshData();
+                } else {
+                    var data = await res.json();
+                    alert(data.error || 'Failed to kick');
+                }
+            } catch (e) {
+                alert('Error kicking player');
+            }
+        }
+
+        // --- Modal ---
+        function showAddModal() {
+            document.getElementById('addModal').classList.add('show');
+            document.getElementById('addPlayerId').value = '';
+            document.getElementById('addPlayerName').value = '';
+            document.getElementById('addDiscordId').value = '';
+        }
+
+        function hideAddModal() {
+            document.getElementById('addModal').classList.remove('show');
+        }
+
+        document.getElementById('addModal').addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal-overlay')) hideAddModal();
+        });
+
+        // --- Utility ---
+        function esc(str) {
+            if (!str) return '';
+            var div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function formatDate(iso) {
+            if (!iso) return '-';
+            var d = new Date(iso);
+            return d.toLocaleString('en-GB', { timeZone: 'Asia/Bangkok', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        function formatLogType(type) {
+            if (!type) return 'unknown';
+            return type.replace(/_/g, ' ');
+        }
+
+        function formatLogData(data) {
+            if (!data || Object.keys(data).length === 0) return '-';
+            var parts = [];
+            if (data.playerName) parts.push('<b>' + esc(data.playerName) + '</b>');
+            if (data.playerId) parts.push('ID: ' + esc(data.playerId));
+            if (data.killer) parts.push(esc(data.killer) + ' > ' + esc(data.victim || '?'));
+            if (data.weapon && data.weapon !== 'Unknown') parts.push('(' + esc(data.weapon) + ')');
+            if (data.message) parts.push('"' + esc(data.message) + '"');
+            if (data.reason) parts.push('Reason: ' + esc(data.reason));
+            if (data.addedBy) parts.push('by ' + esc(data.addedBy));
+            if (data.removedBy) parts.push('by ' + esc(data.removedBy));
+            if (data.kickedBy) parts.push('by ' + esc(data.kickedBy));
+            if (data.command) parts.push('cmd: ' + esc(data.command));
+            if (data.by) parts.push('by ' + esc(data.by));
+            if (parts.length === 0) {
+                return Object.entries(data).map(function(e) { return e[0] + ': ' + esc(String(e[1])); }).join(', ');
+            }
+            return parts.join(' | ');
+        }
+
+        // --- Settings ---
+        var settingsLabels = {
+            whitelistEnabled: { name: 'Whitelist Enforcement', desc: 'Kick non-whitelisted players from the server' },
+            autoKickEnabled: { name: 'Auto-Kick', desc: 'Automatically kick players after warning period' },
+            chatBridgeEnabled: { name: 'Chat Bridge', desc: 'Bridge chat between Discord and game server' },
+            killfeedEnabled: { name: 'Killfeed', desc: 'Show kills in Discord killfeed channel' },
+            joinLeaveNotifications: { name: 'Join/Leave Notifications', desc: 'Send notifications when players join or leave' }
+        };
+
+        async function loadSettings() {
+            try {
+                var res = await fetch('/api/settings');
+                if (res.status === 401) return;
+                var data = await res.json();
+                renderSettings(data);
+            } catch (e) { console.error('Error loading settings:', e); }
+        }
+
+        function renderSettings(data) {
+            var grid = document.getElementById('settingsGrid');
+            var keys = ['whitelistEnabled', 'autoKickEnabled', 'chatBridgeEnabled', 'killfeedEnabled', 'joinLeaveNotifications'];
+            grid.innerHTML = keys.map(function(key) {
+                var info = settingsLabels[key] || { name: key, desc: '' };
+                var checked = data[key] ? 'checked' : '';
+                return '<div class="setting-card">' +
+                    '<div class="setting-info"><h4>' + info.name + '</h4><p>' + info.desc + '</p></div>' +
+                    '<label class="toggle-switch">' +
+                    '<input type="checkbox" ' + checked + ' onchange="toggleSetting(\'' + key + '\')">' +
+                    '<span class="toggle-slider"></span></label></div>';
+            }).join('') + '<div class="setting-card"><div class="setting-info"><h4>Kick Delay</h4><p>Seconds before kicking non-whitelisted player: <b>' + (data.kickDelaySeconds || 60) + 's</b></p></div></div>';
+        }
+
+        async function toggleSetting(key) {
+            try {
+                var res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: key })
+                });
+                var data = await res.json();
+                if (data.settings) renderSettings(data.settings);
+            } catch (e) { alert('Error toggling setting'); }
+        }
+
+        // --- Registrations ---
+        var registrationsData = [];
+
+        async function loadRegistrations() {
+            try {
+                var res = await fetch('/api/registrations');
+                if (res.status === 401) return;
+                var data = await res.json();
+                registrationsData = data.entries || [];
+                renderRegistrations(registrationsData);
+            } catch (e) { console.error('Error loading registrations:', e); }
+        }
+
+        function renderRegistrations(entries) {
+            var tbody = document.getElementById('registrationsTable');
+            if (!entries || entries.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No registered players</td></tr>';
+                return;
+            }
+            tbody.innerHTML = entries.map(function(e, i) {
+                return '<tr><td>' + (i + 1) + '</td>' +
+                    '<td><code>' + esc(e.discordId) + '</code></td>' +
+                    '<td><code>' + esc(e.gameUID) + '</code></td>' +
+                    '<td>' + esc(e.playerName || '-') + '</td>' +
+                    '<td>' + formatDate(e.registeredAt) + '</td>' +
+                    '<td><button class="btn btn-danger btn-small" onclick="removeRegistration(\'' + esc(e.discordId) + '\')">ลบ</button></td></tr>';
+            }).join('');
+        }
+
+        function filterRegistrations() {
+            var q = document.getElementById('regSearch').value.toLowerCase();
+            if (!q) { renderRegistrations(registrationsData); return; }
+            var filtered = registrationsData.filter(function(e) {
+                return (e.discordId && e.discordId.toLowerCase().includes(q)) ||
+                       (e.gameUID && e.gameUID.toLowerCase().includes(q)) ||
+                       (e.playerName && e.playerName.toLowerCase().includes(q));
+            });
+            renderRegistrations(filtered);
+        }
+
+        async function removeRegistration(discordId) {
+            if (!confirm('Remove registration for ' + discordId + '? This will also remove them from whitelist.')) return;
+            try {
+                await fetch('/api/registrations/' + encodeURIComponent(discordId), { method: 'DELETE' });
+                refreshData();
+            } catch (e) { alert('Error removing registration'); }
+        }
+
+        // --- Credit/Status Editor ---
+        var creditUnlocked = false;
+        var creditCode = '';
+
+        async function unlockCredit() {
+            creditCode = document.getElementById('creditUnlockCode').value;
+            if (!creditCode) { alert('Please enter unlock code'); return; }
+
+            try {
+                var res = await fetch('/api/credit');
+                if (!res.ok) { alert('Error loading credit data'); return; }
+                var data = await res.json();
+
+                // Try a dummy save to validate code
+                var testRes = await fetch('/api/credit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ unlockCode: creditCode, statusMessages: data.statusMessages, statusInterval: data.statusInterval })
+                });
+                if (testRes.status === 403) { alert('Invalid unlock code'); return; }
+
+                creditUnlocked = true;
+                document.getElementById('creditLockArea').style.display = 'none';
+                document.getElementById('creditEditorArea').style.display = 'block';
+
+                renderCreditMessages(data.statusMessages);
+                document.getElementById('creditInterval').value = data.statusInterval || 40;
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        function lockCredit() {
+            creditUnlocked = false;
+            creditCode = '';
+            document.getElementById('creditLockArea').style.display = 'block';
+            document.getElementById('creditEditorArea').style.display = 'none';
+            document.getElementById('creditUnlockCode').value = '';
+        }
+
+        function renderCreditMessages(msgs) {
+            var container = document.getElementById('statusMsgList');
+            container.innerHTML = msgs.map(function(msg, i) {
+                return '<div class="msg-row">' +
+                    '<input type="text" class="search-input" value="' + esc(msg) + '" style="width:100%" data-msgindex="' + i + '">' +
+                    '<button class="btn btn-danger btn-small" onclick="removeStatusMsg(' + i + ')">X</button>' +
+                    '</div>';
+            }).join('');
+        }
+
+        function addStatusMsg() {
+            var container = document.getElementById('statusMsgList');
+            var idx = container.children.length;
+            var div = document.createElement('div');
+            div.className = 'msg-row';
+            div.innerHTML = '<input type="text" class="search-input" value="" style="width:100%" data-msgindex="' + idx + '" placeholder="New status message...">' +
+                '<button class="btn btn-danger btn-small" onclick="removeStatusMsg(' + idx + ')">X</button>';
+            container.appendChild(div);
+        }
+
+        function removeStatusMsg(index) {
+            var container = document.getElementById('statusMsgList');
+            var rows = container.querySelectorAll('.msg-row');
+            if (rows.length <= 1) { alert('At least one message is required'); return; }
+            if (rows[index]) rows[index].remove();
+        }
+
+        function getStatusMessages() {
+            var inputs = document.querySelectorAll('#statusMsgList input');
+            var msgs = [];
+            inputs.forEach(function(input) {
+                var v = input.value.trim();
+                if (v) msgs.push(v);
+            });
+            return msgs;
+        }
+
+        async function saveCreditSettings() {
+            var msgs = getStatusMessages();
+            if (msgs.length === 0) { alert('At least one status message is required'); return; }
+
+            var interval = parseInt(document.getElementById('creditInterval').value) || 40;
+            var newCode = document.getElementById('newCreditCode').value.trim();
+
+            var body = { unlockCode: creditCode, statusMessages: msgs, statusInterval: interval };
+            if (newCode && newCode.length >= 4) body.creditEditCode = newCode;
+
+            try {
+                var res = await fetch('/api/credit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (res.status === 403) { alert('Invalid unlock code'); return; }
+                var data = await res.json();
+                if (data.success) {
+                    alert('Saved! Bot status will update on next rotation cycle.\nRestart bot for immediate effect.');
+                    if (newCode && newCode.length >= 4) {
+                        creditCode = newCode;
+                        document.getElementById('newCreditCode').value = '';
+                    }
+                    renderCreditMessages(data.statusMessages);
+                } else {
+                    alert('Error saving');
+                }
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        // --- Refresh ---
+        function refreshData() {
+            loadStatus();
+            loadWhitelist();
+            loadLogs();
+            loadSettings();
+            loadRegistrations();
+            loadWlCodes();
+            countdown = 15;
+        }
+
+        function startCountdown() {
+            refreshTimer = setInterval(function() {
+                countdown--;
+                document.getElementById('countdown').textContent = countdown;
+                if (countdown <= 0) refreshData();
+            }, 1000);
+        }
+
+        // Init - check role and hide owner-only tabs for admin
+        var userRole = 'admin';
+        (async function() {
+            try {
+                var authRes = await fetch('/api/auth/status');
+                var authData = await authRes.json();
+                if (!authData.authenticated) { window.location.href = '/login.html'; return; }
+                userRole = authData.role || 'admin';
+                var badge = document.getElementById('roleBadge');
+                if (userRole === 'owner') {
+                    badge.textContent = 'OWNER';
+                    badge.style.background = 'rgba(87,242,135,0.15)';
+                    badge.style.color = '#57f287';
+                } else {
+                    badge.textContent = 'ADMIN';
+                    badge.style.background = 'rgba(254,231,92,0.15)';
+                    badge.style.color = '#fee75c';
+                    // Hide owner-only tabs
+                    document.querySelectorAll('.tab').forEach(function(tab) {
+                        var t = tab.dataset.tab;
+                        if (t === 'console' || t === 'settings' || t === 'wlcodes' || t === 'credit') {
+                            tab.style.display = 'none';
+                        }
+                    });
+                }
+            } catch (e) { console.error('Auth check failed:', e); }
+            refreshData();
+            startCountdown();
+        })();
+
+        // --- Whitelist Codes ---
+        async function loadWlCodes() {
+            try {
+                var res = await fetch('/api/whitelistcodes');
+                if (res.status === 401) return;
+                var data = await res.json();
+                renderWlCodes(data.codes || []);
+            } catch (e) { console.error('Error loading WL codes:', e); }
+        }
+
+        function renderWlCodes(codes) {
+            var tbody = document.getElementById('wlCodesTable');
+            if (!codes || codes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No whitelist codes</td></tr>';
+                return;
+            }
+            tbody.innerHTML = codes.map(function(c) {
+                var statusCls = c.status;
+                var statusText = c.status === 'active' ? 'Active' : (c.status === 'expired' ? 'Expired' : 'Used Up');
+                var usesText = c.maxUses > 0 ? c.uses + '/' + c.maxUses : c.uses + '/∞';
+                var expiresText = c.expiresAt ? formatDate(c.expiresAt) : 'Never';
+                var usedByInfo = '';
+                if (c.usedBy && c.usedBy.length > 0) {
+                    usedByInfo = c.usedBy.map(function(u) { return esc(u.playerName || u.discordId); }).join(', ');
+                }
+                return '<tr>' +
+                    '<td><span class="code-badge ' + statusCls + '" title="Click to copy" onclick="navigator.clipboard.writeText(\'' + esc(c.code) + '\')">' + esc(c.code) + '</span></td>' +
+                    '<td><span class="code-status ' + statusCls + '">' + statusText + '</span></td>' +
+                    '<td>' + usesText + (usedByInfo ? '<br><small style="color:rgba(255,255,255,0.4)">' + usedByInfo + '</small>' : '') + '</td>' +
+                    '<td>' + expiresText + '</td>' +
+                    '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis">' + esc(c.note) + '</td>' +
+                    '<td>' + formatDate(c.createdAt) + '</td>' +
+                    '<td><button class="btn btn-danger btn-small" onclick="deleteWlCode(\'' + esc(c.code) + '\')">Delete</button></td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        async function generateWlCode() {
+            var maxUses = parseInt(document.getElementById('codeMaxUses').value) || 0;
+            var expiresInHours = parseInt(document.getElementById('codeExpires').value) || 0;
+            var note = document.getElementById('codeNote').value.trim();
+
+            try {
+                var res = await fetch('/api/whitelistcodes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ maxUses: maxUses, expiresInHours: expiresInHours, note: note })
+                });
+                var data = await res.json();
+                if (data.success) {
+                    document.getElementById('generatedCode').textContent = data.code;
+                    document.getElementById('generatedCodeArea').style.display = 'block';
+                    document.getElementById('codeNote').value = '';
+                    loadWlCodes();
+                } else {
+                    alert(data.error || 'Failed to generate code');
+                }
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        function copyCode() {
+            var code = document.getElementById('generatedCode').textContent;
+            navigator.clipboard.writeText(code).then(function() {
+                alert('Copied: ' + code);
+            });
+        }
+
+        async function deleteWlCode(code) {
+            if (!confirm('Delete code ' + code + '?')) return;
+            try {
+                await fetch('/api/whitelistcodes/' + encodeURIComponent(code), { method: 'DELETE' });
+                loadWlCodes();
+            } catch (e) { alert('Error deleting code'); }
+        }
+    </script>
+</body>
+</html>
