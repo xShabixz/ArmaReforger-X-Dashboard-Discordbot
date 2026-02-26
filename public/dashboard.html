@@ -1120,5 +1120,23 @@
             } catch (e) { alert('Error deleting code'); }
         }
     </script>
+    <script>
+        // --- Auto Logout on Idle (15 minutes) ---
+        (function() {
+            var IDLE_TIMEOUT = 15 * 60 * 1000; // 15 minutes
+            var idleTimer;
+            function resetIdleTimer() {
+                clearTimeout(idleTimer);
+                idleTimer = setTimeout(function() {
+                    alert('Session expired due to inactivity. You will be logged out.');
+                    window.location.href = '/logout';
+                }, IDLE_TIMEOUT);
+            }
+            ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'].forEach(function(evt) {
+                document.addEventListener(evt, resetIdleTimer, { passive: true });
+            });
+            resetIdleTimer();
+        })();
+    </script>
 </body>
 </html>
