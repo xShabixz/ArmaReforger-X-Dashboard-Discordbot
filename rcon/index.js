@@ -16,6 +16,8 @@
 
 const dgram = require('dgram');
 const EventEmitter = require('events');
+const fs = require('fs');
+const path = require('path');
 const config = require('../config');
 const whitelist = require('../database/whitelist');
 const logger = require('../database/logger');
@@ -59,6 +61,11 @@ class RconClient extends EventEmitter {
 
         this.WARNING_MESSAGE =
             'You are NOT whitelisted! Register in Discord within 120 seconds or you will be kicked.';
+
+        // Log file watcher state
+        this.logWatcherTimer = null;
+        this.currentLogDir = null;
+        this.logFilePositions = {}; // { filepath: lastReadPosition }
     }
 
     // --- Build BattlEye packet ---
@@ -754,15 +761,197 @@ class RconClient extends EventEmitter {
         return false;
     }
 
+    // =============================================
+    // Server Log File Watcher (Kill Feed)
+    // =============================================
+
+    startLogWatcher() {
+        if (!config.serverLogDir) {
+            console.log('[LogWatcher] SERVER_LOG_DIR not set - kill feed from server logs disabled');
+            return;
+        }
+
+        if (!fs.existsSync(config.serverLogDir)) {
+            console.log('[LogWatcher] Log directory not found: ' + config.serverLogDir);
+            return;
+        }
+
+        console.log('[LogWatcher] Starting server log watcher: ' + config.serverLogDir);
+        this.findLatestLogDir();
+
+        // Poll every 3 seconds for new log lines
+        this.logWatcherTimer = setInterval(() => {
+            this.pollLogFiles();
+        }, 3000);
+    }
+
+    stopLogWatcher() {
+        if (this.logWatcherTimer) {
+            clearInterval(this.logWatcherTimer);
+            this.logWatcherTimer = null;
+        }
+    }
+
+    findLatestLogDir() {
+        try {
+            var entries = fs.readdirSync(config.serverLogDir, { withFileTypes: true });
+            var logDirs = entries
+                .filter(function(e) { return e.isDirectory() && e.name.startsWith('logs_'); })
+                .map(function(e) { return e.name; })
+                .sort();
+
+            if (logDirs.length === 0) {
+                console.log('[LogWatcher] No log directories found');
+                return;
+            }
+
+            var latestDir = path.join(config.serverLogDir, logDirs[logDirs.length - 1]);
+            if (latestDir !== this.currentLogDir) {
+                console.log('[LogWatcher] Watching log directory: ' + logDirs[logDirs.length - 1]);
+                this.currentLogDir = latestDir;
+                // Reset positions - start reading from current end (don't replay old logs)
+                this.logFilePositions = {};
+                var consolePath = path.join(latestDir, 'console.log');
+                var scriptPath = path.join(latestDir, 'script.log');
+                if (fs.existsSync(consolePath)) {
+                    this.logFilePositions[consolePath] = fs.statSync(consolePath).size;
+                }
+                if (fs.existsSync(scriptPath)) {
+                    this.logFilePositions[scriptPath] = fs.statSync(scriptPath).size;
+                }
+            }
+        } catch (err) {
+            console.error('[LogWatcher] Error finding log dir:', err.message);
+        }
+    }
+
+    pollLogFiles() {
+        // Check for newer log directory (server restart)
+        this.findLatestLogDir();
+        if (!this.currentLogDir) return;
+
+        var files = [
+            path.join(this.currentLogDir, 'console.log'),
+            path.join(this.currentLogDir, 'script.log')
+        ];
+
+        for (var i = 0; i < files.length; i++) {
+            this.readNewLines(files[i]);
+        }
+    }
+
+    readNewLines(filePath) {
+        try {
+            if (!fs.existsSync(filePath)) return;
+
+            var stat = fs.statSync(filePath);
+            var lastPos = this.logFilePositions[filePath] || 0;
+
+            // File was truncated/rotated (new server session)
+            if (stat.size < lastPos) {
+                lastPos = 0;
+            }
+
+            if (stat.size <= lastPos) return; // No new data
+
+            var bytesToRead = stat.size - lastPos;
+            // Limit read size to 64KB per poll to avoid memory issues
+            if (bytesToRead > 65536) {
+                lastPos = stat.size - 65536;
+                bytesToRead = 65536;
+            }
+
+            var buf = Buffer.alloc(bytesToRead);
+            var fd = fs.openSync(filePath, 'r');
+            fs.readSync(fd, buf, 0, bytesToRead, lastPos);
+            fs.closeSync(fd);
+
+            this.logFilePositions[filePath] = stat.size;
+
+            var text = buf.toString('utf8');
+            var lines = text.split(/\r?\n/);
+            for (var j = 0; j < lines.length; j++) {
+                var line = lines[j].trim();
+                if (line) {
+                    this.parseLogLine(line);
+                }
+            }
+        } catch (err) {
+            // File might be locked by server, skip this poll
+        }
+    }
+
+    parseLogLine(line) {
+        // Strip timestamp prefix (e.g., "09:08:08.481   SCRIPT       :")
+        var stripped = line.replace(/^\d{2}:\d{2}:\d{2}\.\d+\s+\S+\s*(?:\([EW]\))?\s*:\s*/, '').trim();
+
+        // --- Kill patterns from various mods and vanilla ---
+
+        // Pattern: "PlayerA killed PlayerB" or "PlayerA killed PlayerB with WeaponName"
+        var m = stripped.match(/^(.+?)\s+killed\s+(.+?)(?:\s+with\s+(.+))?$/i);
+        if (m && !stripped.includes('duplicate notification') && !stripped.includes('PUNISHMENT')) {
+            this.emitKillEvent(m[1].trim(), m[2].trim(), (m[3] || 'Unknown').trim());
+            return;
+        }
+
+        // Pattern: "PlayerA was killed by PlayerB"
+        m = stripped.match(/^(.+?)\s+was killed by\s+(.+?)(?:\s+with\s+(.+))?$/i);
+        if (m) {
+            this.emitKillEvent(m[2].trim(), m[1].trim(), (m[3] || 'Unknown').trim());
+            return;
+        }
+
+        // Pattern: "[KillFeed] PlayerA > PlayerB (WeaponName)"
+        m = stripped.match(/\[KillFeed\]\s*(.+?)\s*>\s*(.+?)(?:\s*\((.+?)\))?$/i);
+        if (m) {
+            this.emitKillEvent(m[1].trim(), m[2].trim(), (m[3] || 'Unknown').trim());
+            return;
+        }
+
+        // Pattern: "Player 'Name' (id) killed by player 'Name2' (id2)" (TrustyAdminTools format)
+        m = stripped.match(/Player\s+'(.+?)'\s*(?:\([^)]*\))?\s*killed\s+by\s+player\s+'(.+?)'/i);
+        if (m) {
+            this.emitKillEvent(m[2].trim(), m[1].trim(), 'Unknown');
+            return;
+        }
+
+        // Pattern: "KILL: PlayerA -> PlayerB (weapon)" (ServerAdminTools format)
+        m = stripped.match(/KILL:\s*(.+?)\s*->\s*(.+?)(?:\s*\((.+?)\))?$/i);
+        if (m) {
+            this.emitKillEvent(m[1].trim(), m[2].trim(), (m[3] || 'Unknown').trim());
+            return;
+        }
+
+        // Pattern: "Player 'Name' died" or "Name died" (death without killer)
+        m = stripped.match(/(?:Player\s+')?(.+?)(?:')?\s+died$/i);
+        if (m && m[1].length < 40 && !m[1].includes('(') && !m[1].includes('script')) {
+            this.emitKillEvent('Environment', m[1].trim(), 'Unknown');
+            return;
+        }
+    }
+
+    emitKillEvent(killer, victim, weapon) {
+        // Filter out system/noise entries
+        if (killer.length > 50 || victim.length > 50) return;
+        if (/^(Processing|Logged|unknown|Players|Module|Compiling)/i.test(killer)) return;
+        if (/^(Processing|Logged|unknown|Players|Module|Compiling)/i.test(victim)) return;
+
+        console.log('[LogWatcher] Kill: ' + killer + ' killed ' + victim + ' (' + weapon + ')');
+        logger.log('kill', { killer: killer, victim: victim, weapon: weapon });
+        this.emit('kill', { killer: killer, victim: victim, weapon: weapon });
+    }
+
     // --- Lifecycle ---
 
     start() {
         console.log('[RCON] Starting RCON handler (BattlEye UDP)...');
         this.connect();
+        this.startLogWatcher();
     }
 
     stop() {
         console.log('[RCON] Stopping RCON handler...');
+        this.stopLogWatcher();
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;

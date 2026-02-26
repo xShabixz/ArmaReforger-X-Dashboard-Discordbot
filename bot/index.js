@@ -1094,21 +1094,30 @@ async function handleSettingsCommand(interaction) {
 
 // --- /broadcast ---
 async function handleBroadcastCommand(interaction) {
-    if (!rcon.getIsConnected()) {
-        return interaction.reply({ content: 'RCON not connected', ephemeral: true });
-    }
-
     var message = interaction.options.getString('message');
-    rcon.sendCommand('say -1 [BROADCAST] ' + message);
     logger.log('admin_broadcast', { message: message, by: interaction.user.tag });
 
+    var broadcastEmbed = new EmbedBuilder()
+        .setColor(0xFEE75C)
+        .setTitle('📢 Server Announcement')
+        .setDescription(message)
+        .setFooter({ text: 'By ' + interaction.user.tag })
+        .setTimestamp();
+
+    // Send to log channel
     sendToLogChannel(new EmbedBuilder().setColor(0xFEE75C).setAuthor({ name: 'Broadcast' })
         .setDescription('**' + interaction.user.tag + '** broadcasted: ' + message)
         .setTimestamp());
 
+    // Send to chat channel
+    sendToChatChannel({ embeds: [broadcastEmbed] });
+
+    // Send to killfeed channel
+    sendToKillfeedChannel(broadcastEmbed);
+
     return interaction.reply({
-        embeds: [new EmbedBuilder().setColor(0xFEE75C).setTitle('Broadcast Sent').setDescription(message)
-            .setFooter({ text: 'By ' + interaction.user.tag }).setTimestamp()],
+        embeds: [new EmbedBuilder().setColor(0xFEE75C).setTitle('📢 Broadcast Sent').setDescription(message)
+            .setFooter({ text: 'Sent to Discord channels • By ' + interaction.user.tag }).setTimestamp()],
         ephemeral: true
     });
 }

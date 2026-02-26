@@ -45,6 +45,10 @@ module.exports = {
     kickDelaySeconds: 120,           // Kick delay for non-whitelisted players (in seconds)
     rconReconnectDelay: 5000,
 
+    // Server Log Directory (for kill feed monitoring)
+    // Path to the Arma Reforger server saves/logs directory
+    serverLogDir: process.env.SERVER_LOG_DIR || '',
+
     // Paths
     databasePath: './database',
     whitelistFile: './database/whitelist.json',
