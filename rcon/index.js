@@ -60,7 +60,7 @@ class RconClient extends EventEmitter {
         this.lastPacketTime = 0;
 
         this.WARNING_MESSAGE =
-            'You are NOT whitelisted! Register in Discord within 120 seconds or you will be kicked.';
+            '[WARNING] You are NOT whitelisted! Register in Discord within 120 seconds or you will be kicked.';
 
         // Log file watcher state
         this.logWatcherTimer = null;
@@ -728,9 +728,35 @@ class RconClient extends EventEmitter {
     }
 
     sendMessage(playerId, message) {
-        // Arma Reforger BattlEye doesn't support 'say' command
-        // Just log the message - kick will still happen after delay
-        console.log('[RCON] Warning (server msg not supported): ' + message);
+        // Use RCON Plus 'pmid' command to send private message to player
+        console.log('[RCON] PM to ' + playerId + ': ' + message);
+        this.sendCommand('pmid ' + playerId + ' ' + message);
+    }
+
+    // --- RCON Plus: Send message to player by name ---
+    sendMessageByName(playerName, message) {
+        console.log('[RCON] PM to ' + playerName + ': ' + message);
+        this.sendCommand('pm ' + playerName + ' ' + message);
+    }
+
+    // --- RCON Plus: Broadcast message types ---
+    broadcastMessage(message, type) {
+        type = type || 'admin';
+        switch (type) {
+            case 'warning':
+                this.sendCommand('saywarning ' + message);
+                break;
+            case 'positive':
+                this.sendCommand('saypositive ' + message);
+                break;
+            case 'negative':
+                this.sendCommand('saynegative ' + message);
+                break;
+            case 'admin':
+            default:
+                this.sendCommand('say ' + message);
+                break;
+        }
     }
 
     // --- Send command via BattlEye ---
@@ -756,9 +782,10 @@ class RconClient extends EventEmitter {
     // --- Send chat from Discord to game ---
 
     sendChatToGame(senderName, message) {
-        // Arma Reforger BattlEye doesn't support 'say' - log only
-        console.log('[RCON] Chat to game not supported: [Discord] ' + senderName + ': ' + message);
-        return false;
+        // Use RCON Plus 'say' command to send Discord chat to game
+        console.log('[RCON] Chat to game: [Discord] ' + senderName + ': ' + message);
+        this.sendCommand('say [Discord] ' + senderName + ': ' + message);
+        return true;
     }
 
     // =============================================

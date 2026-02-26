@@ -126,6 +126,23 @@ var commands = [
         .setName('broadcast')
         .setDescription('Broadcast a message to all players in-game')
         .addStringOption(function(opt) { return opt.setName('message').setDescription('Message to broadcast').setRequired(true); })
+        .addStringOption(function(opt) {
+            return opt.setName('type').setDescription('Message type (color/style)')
+                .setRequired(false)
+                .addChoices(
+                    { name: '💜 Admin (Purple)', value: 'admin' },
+                    { name: '🔵 Warning (Cyan)', value: 'warning' },
+                    { name: '🟢 Positive (Blue)', value: 'positive' },
+                    { name: '🔴 Alert (Red)', value: 'negative' }
+                );
+        })
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+    new SlashCommandBuilder()
+        .setName('pm')
+        .setDescription('Send a private message to a player in-game')
+        .addStringOption(function(opt) { return opt.setName('player').setDescription('Player name or UID').setRequired(true); })
+        .addStringOption(function(opt) { return opt.setName('message').setDescription('Message to send').setRequired(true); })
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
@@ -492,7 +509,7 @@ function createClient() {
         }
 
         // Admin commands list
-        var adminCommands = ['whitelist', 'status', 'players', 'kick', 'rcon', 'sync', 'logs', 'broadcast', 'settings', 'ban', 'unban'];
+        var adminCommands = ['whitelist', 'status', 'players', 'kick', 'rcon', 'sync', 'logs', 'broadcast', 'settings', 'ban', 'unban', 'pm'];
 
         // Check admin permission for admin commands
         if (adminCommands.indexOf(interaction.commandName) !== -1) {
@@ -515,6 +532,7 @@ function createClient() {
                 case 'sync': await handleSyncCommand(interaction); break;
                 case 'logs': await handleLogsCommand(interaction); break;
                 case 'broadcast': await handleBroadcastCommand(interaction); break;
+                case 'pm': await handlePmCommand(interaction); break;
                 case 'settings': await handleSettingsCommand(interaction); break;
                 case 'ban': await handleBanCommand(interaction); break;
                 case 'unban': await handleUnbanCommand(interaction); break;
@@ -1094,30 +1112,71 @@ async function handleSettingsCommand(interaction) {
 
 // --- /broadcast ---
 async function handleBroadcastCommand(interaction) {
+    if (!rcon.getIsConnected()) {
+        return interaction.reply({ content: 'RCON not connected', ephemeral: true });
+    }
+
     var message = interaction.options.getString('message');
-    logger.log('admin_broadcast', { message: message, by: interaction.user.tag });
+    var type = interaction.options.getString('type') || 'admin';
+
+    // Send to game via RCON Plus
+    rcon.broadcastMessage(message, type);
+    logger.log('admin_broadcast', { message: message, type: type, by: interaction.user.tag });
+
+    // Color based on type
+    var colorMap = { admin: 0x9B59B6, warning: 0x00CED1, positive: 0x3498DB, negative: 0xFF0000 };
+    var labelMap = { admin: '💜 Admin', warning: '⚠️ Warning', positive: '✅ Positive', negative: '🛑 Alert' };
+    var color = colorMap[type] || 0xFEE75C;
+    var label = labelMap[type] || 'Broadcast';
 
     var broadcastEmbed = new EmbedBuilder()
-        .setColor(0xFEE75C)
-        .setTitle('📢 Server Announcement')
+        .setColor(color)
+        .setTitle('📢 ' + label + ' Broadcast')
         .setDescription(message)
         .setFooter({ text: 'By ' + interaction.user.tag })
         .setTimestamp();
 
     // Send to log channel
-    sendToLogChannel(new EmbedBuilder().setColor(0xFEE75C).setAuthor({ name: 'Broadcast' })
+    sendToLogChannel(new EmbedBuilder().setColor(color).setAuthor({ name: 'Broadcast (' + label + ')' })
         .setDescription('**' + interaction.user.tag + '** broadcasted: ' + message)
         .setTimestamp());
 
     // Send to chat channel
     sendToChatChannel({ embeds: [broadcastEmbed] });
 
-    // Send to killfeed channel
-    sendToKillfeedChannel(broadcastEmbed);
+    return interaction.reply({
+        embeds: [new EmbedBuilder().setColor(color).setTitle('📢 Broadcast Sent').setDescription(message)
+            .setFooter({ text: label + ' • Sent to game + Discord • By ' + interaction.user.tag }).setTimestamp()],
+        ephemeral: true
+    });
+}
+
+// --- /pm ---
+async function handlePmCommand(interaction) {
+    if (!rcon.getIsConnected()) {
+        return interaction.reply({ content: 'RCON not connected', ephemeral: true });
+    }
+
+    var player = interaction.options.getString('player');
+    var message = interaction.options.getString('message');
+
+    // Decide: if it looks like a UID (contains -), use pmid; otherwise use pm (name)
+    if (player.includes('-')) {
+        rcon.sendMessage(player, message);
+    } else {
+        rcon.sendMessageByName(player, message);
+    }
+
+    logger.log('admin_pm', { player: player, message: message, by: interaction.user.tag });
+
+    sendToLogChannel(new EmbedBuilder().setColor(0x9B59B6).setAuthor({ name: 'Private Message' })
+        .setDescription('**' + interaction.user.tag + '** PM to **' + player + '**: ' + message)
+        .setTimestamp());
 
     return interaction.reply({
-        embeds: [new EmbedBuilder().setColor(0xFEE75C).setTitle('📢 Broadcast Sent').setDescription(message)
-            .setFooter({ text: 'Sent to Discord channels • By ' + interaction.user.tag }).setTimestamp()],
+        embeds: [new EmbedBuilder().setColor(0x9B59B6).setTitle('📩 PM Sent')
+            .setDescription('**To:** ' + player + '\n**Message:** ' + message)
+            .setFooter({ text: 'By ' + interaction.user.tag }).setTimestamp()],
         ephemeral: true
     });
 }
@@ -1562,7 +1621,9 @@ async function handleHelpCommand(interaction) {
         '`/kick <player>` — เตะผู้เล่น (ใส่ UID, ชื่อ, หรือ slot#)',
         '`/ban <player> [duration] [reason]` — แบนผู้เล่น (กำหนดระยะเวลาได้)',
         '`/unban <player_id>` — ปลดแบนผู้เล่น',
-        '`/broadcast <message>` — ส่งข้อความประกาศถึงผู้เล่นทุกคนในเกม\n',
+        '`/broadcast <message> [type]` — ส่งข้อความประกาศถึงผู้เล่นทุกคนในเกม\n',
+        '> ประเภท: Admin (ม่วง), Warning (ฟ้า), Positive (น้ำเงิน), Alert (แดง)\n',
+        '`/pm <player> <message>` — ส่งข้อความส่วนตัวถึงผู้เล่นในเกม\n',
         '**จัดการระบบ**',
         '`/rcon <command>` — ส่งคำสั่ง RCON ไปยังเซิร์ฟเวอร์โดยตรง',
         '`/status` — ดูสถานะระบบทั้งหมด (Bot, RCON, ผู้เล่น, ไวท์ลิสต์)',
